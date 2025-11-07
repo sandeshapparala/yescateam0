@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
-export default function DonatePaymentCallbackPage() {
+function DonatePaymentCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<'processing' | 'error'>('processing');
@@ -81,5 +81,24 @@ export default function DonatePaymentCallbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function DonatePaymentCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
+          <div className="text-center space-y-4 p-8">
+            <Loader2 className="w-16 h-16 animate-spin text-purple-600 dark:text-purple-400 mx-auto" />
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Loading...
+            </h1>
+          </div>
+        </div>
+      }
+    >
+      <DonatePaymentCallbackContent />
+    </Suspense>
   );
 }

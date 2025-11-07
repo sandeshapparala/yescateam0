@@ -1,13 +1,14 @@
 // Donation Payment Failed Page
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { XCircle, RefreshCcw, Home, HelpCircle } from "lucide-react";
 
-export default function DonationFailedPage() {
+function DonationFailedContent() {
   const searchParams = useSearchParams();
   const transactionId = searchParams.get("transaction");
 
@@ -108,5 +109,22 @@ export default function DonationFailedPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function DonationFailedPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50 dark:from-gray-900 dark:via-red-900/20 dark:to-gray-900 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600 dark:text-gray-300">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <DonationFailedContent />
+    </Suspense>
   );
 }
