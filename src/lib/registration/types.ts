@@ -14,7 +14,7 @@ export const REGISTRATION_CONFIGS: Record<RegistrationType, RegistrationConfig> 
   normal: {
     type: 'normal',
     title: 'Normal Registration',
-    titleTelugu: 'సాధారణ రిజిస్ట్రేషన్',
+    titleTelugu: '',
     description: 'Standard camp registration',
     fee: 500,
     requiresFaithbox: false,

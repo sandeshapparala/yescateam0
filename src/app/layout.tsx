@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Pacifico } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/ThemeProvider";
+import { Navbar } from "@/components/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -73,30 +74,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                const theme = localStorage.getItem('theme') || 
-                  (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-                document.documentElement.classList.add(theme);
-              } catch (e) {}
-            `,
-          }}
-        />
+
       </head>
       <body
-        suppressHydrationWarning
-        className={`${geistSans.variable} ${geistMono.variable} ${pacifico.variable} font-[DIN_Pro,Arial,sans-serif] antialiased `}
+        className={`${geistSans.variable} ${geistMono.variable} ${pacifico.variable} font-[DIN_Pro,Arial,sans-serif] antialiased`}
       >
         <ThemeProvider 
           attribute="class"
-          defaultTheme="dark"
-          enableSystem
+          defaultTheme="light"
+          enableSystem={false}
           disableTransitionOnChange
         >
+          <Navbar />
           {children}
         </ThemeProvider>
       </body>
