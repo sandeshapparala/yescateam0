@@ -85,6 +85,7 @@ export default function RootLayout({
           attribute="class"
           defaultTheme="light"
           enableSystem={false}
+          storageKey="yesca-theme"
           disableTransitionOnChange
         >
           <Navbar />
