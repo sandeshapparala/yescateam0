@@ -88,7 +88,7 @@ export default function RootLayout({
           storageKey="yesca-theme"
           disableTransitionOnChange
         >
-          <Navbar />
+          {/* <Navbar /> */}
           {children}
         </ThemeProvider>
       </body>
