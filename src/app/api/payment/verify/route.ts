@@ -4,6 +4,7 @@ import { adminDb } from '@/lib/firebase/admin';
 import { generateMemberId } from '@/lib/firebase/utils';
 import { generateRegId } from '@/lib/registration/types';
 import { checkPhonePeOrderStatus } from '@/lib/payment/phonepe';
+import { sendRegistrationConfirmation } from '@/lib/whatsapp/send-confirmation';
 
 export async function GET(request: NextRequest) {
   try {
@@ -184,6 +185,21 @@ export async function GET(request: NextRequest) {
     // Commit batch
     await batch.commit();
     console.log('Successfully saved to Firebase');
+
+    // Send WhatsApp confirmation message
+    try {
+      const loginUrl = `${process.env.NEXT_PUBLIC_URL}/profile`;
+      await sendRegistrationConfirmation(
+        pendingData.phone_number,
+        pendingData.full_name,
+        memberId,
+        loginUrl
+      );
+      console.log('✅ WhatsApp confirmation sent to:', pendingData.phone_number);
+    } catch (whatsappError) {
+      // Don't fail the registration if WhatsApp fails
+      console.error('⚠️ Failed to send WhatsApp confirmation:', whatsappError);
+    }
 
     // Create audit log
     await adminDb.collection('audit_logs').add({

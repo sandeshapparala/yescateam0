@@ -24,6 +24,7 @@ interface OTPVerificationModalProps {
   onClose: () => void;
   phoneNumber: string;
   onVerificationSuccess: () => void;
+  initialMethod?: "whatsapp" | "sms"; // Optional: default method for OTP verification
 }
 
 export function OTPVerificationModal({
@@ -31,43 +32,47 @@ export function OTPVerificationModal({
   onClose,
   phoneNumber,
   onVerificationSuccess,
+  initialMethod = "whatsapp", // Default to WhatsApp (primary method)
 }: OTPVerificationModalProps) {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
+  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes for OTP expiry
+  const [resendTimeLeft, setResendTimeLeft] = useState(60); // 1 minute for resend cooldown
   const [canResend, setCanResend] = useState(false);
-  const [method, setMethod] = useState<"whatsapp" | "sms">("sms");
-  const [isWaitingForFirebaseSMS, setIsWaitingForFirebaseSMS] = useState(true);
+  const [method, setMethod] = useState<"whatsapp" | "sms">(initialMethod);
+  const [isWaitingForFirebaseSMS, setIsWaitingForFirebaseSMS] = useState(initialMethod === "sms");
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const [hasInitializedSMS, setHasInitializedSMS] = useState(false);
+  const [hasInitializedWhatsApp, setHasInitializedWhatsApp] = useState(false);
 
-  // Auto-send SMS when modal opens (since SMS is now default)
+  // Auto-send WhatsApp OTP when modal opens (WhatsApp is now primary)
   useEffect(() => {
-    if (isOpen && method === "sms" && !hasInitializedSMS && !isSending) {
-      setHasInitializedSMS(true);
-      handleSwitchToSMS();
+    if (isOpen && method === "whatsapp" && !hasInitializedWhatsApp && !isSending) {
+      setHasInitializedWhatsApp(true);
+      handleSendWhatsAppOTP();
     }
     
     // Reset state when modal closes
     if (!isOpen) {
-      setHasInitializedSMS(false);
+      setHasInitializedWhatsApp(false);
       setOtp(["", "", "", "", "", ""]);
       setError(null);
       setIsVerifying(false);
       setIsSending(false);
+      setMethod(initialMethod); // Reset to initial method
+      setIsWaitingForFirebaseSMS(initialMethod === "sms");
+      cleanupRecaptcha();
     }
-  }, [isOpen]);
+  }, [isOpen, initialMethod]);
 
-  // Timer countdown
+  // Timer countdown for OTP expiry
   useEffect(() => {
     if (!isOpen || timeLeft === 0) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          setCanResend(true);
           return 0;
         }
         return prev - 1;
@@ -77,11 +82,28 @@ export function OTPVerificationModal({
     return () => clearInterval(timer);
   }, [isOpen, timeLeft]);
 
+  // Timer countdown for resend cooldown
+  useEffect(() => {
+    if (!isOpen || resendTimeLeft === 0) return;
+
+    const timer = setInterval(() => {
+      setResendTimeLeft((prev) => {
+        if (prev <= 1) {
+          setCanResend(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isOpen, resendTimeLeft]);
+
   // Cleanup reCAPTCHA on unmount
   useEffect(() => {
     return () => {
       cleanupRecaptcha();
-      setHasInitializedSMS(false);
+      setHasInitializedWhatsApp(false);
     };
   }, []);
 
@@ -209,13 +231,14 @@ export function OTPVerificationModal({
     }
   };
 
-  // Resend OTP
-  const handleResend = async () => {
+  // Send WhatsApp OTP
+  const handleSendWhatsAppOTP = async () => {
     setIsSending(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/auth/resend-otp", {
+      console.log('📱 Sending WhatsApp OTP...');
+      const response = await fetch("/api/auth/send-otp-whatsapp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone_number: phoneNumber }),
@@ -224,18 +247,33 @@ export function OTPVerificationModal({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to resend OTP");
+        throw new Error(data.error || "Failed to send WhatsApp OTP");
       }
 
-      // Reset timer
-      setTimeLeft(300);
+      console.log('✅ WhatsApp OTP sent successfully');
+
+      // Update UI
+      setMethod("whatsapp");
+      setIsWaitingForFirebaseSMS(false);
+      setTimeLeft(300); // 5 minutes for OTP expiry
+      setResendTimeLeft(60); // 1 minute for resend cooldown
       setCanResend(false);
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to resend OTP");
+      console.error('WhatsApp OTP error:', err);
+      setError(err instanceof Error ? err.message : "Failed to send WhatsApp OTP");
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // Resend OTP (based on current method)
+  const handleResend = async () => {
+    if (method === "whatsapp") {
+      await handleSendWhatsAppOTP();
+    } else {
+      await handleSwitchToSMS();
     }
   };
 
@@ -284,7 +322,8 @@ export function OTPVerificationModal({
       // Update UI
       setMethod("sms");
       setIsWaitingForFirebaseSMS(true);
-      setTimeLeft(300);
+      setTimeLeft(300); // 5 minutes for OTP expiry
+      setResendTimeLeft(60); // 1 minute for resend cooldown
       setCanResend(false);
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
@@ -305,13 +344,28 @@ export function OTPVerificationModal({
             Verify Phone Number
           </DialogTitle>
           <DialogDescription className="text-center">
-            Enter the 6-digit code sent to
-            <br />
-            <span className="font-semibold text-foreground">{phoneNumber}</span>
-            <br />
-            <span className="text-sm">
-              via {method === "whatsapp" ? "WhatsApp" : "SMS"}
-            </span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-center gap-2">
+                {method === "whatsapp" ? (
+                  <>
+                    <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                    </svg>
+                    <span className="font-bold text-green-600">Check Your WhatsApp!</span>
+                  </>
+                ) : (
+                  <>
+                    <Smartphone className="w-6 h-6 text-blue-600" />
+                    <span className="font-bold text-blue-600">Check Your SMS!</span>
+                  </>
+                )}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Enter the 6-digit code sent to
+                <br />
+                <span className="font-semibold text-foreground">{phoneNumber}</span>
+              </div>
+            </div>
           </DialogDescription>
         </DialogHeader>
 
@@ -390,34 +444,18 @@ export function OTPVerificationModal({
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Sending...
                 </>
-              ) : (
+              ) : canResend ? (
                 <>
                   <MessageSquare className="mr-2 h-4 w-4" />
                   Resend OTP
                 </>
+              ) : (
+                <>
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  Resend in {resendTimeLeft}s
+                </>
               )}
             </Button>
-
-            {method === "sms" && (
-              <Button
-                variant="outline"
-                onClick={handleResend}
-                disabled={!canResend || isSending}
-                className="w-full"
-              >
-                {isSending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Smartphone className="mr-2 h-4 w-4" />
-                    Resend SMS OTP
-                  </>
-                )}
-              </Button>
-            )}
 
             {method === "whatsapp" && (
               <Button
@@ -435,6 +473,27 @@ export function OTPVerificationModal({
                   <>
                     <Smartphone className="mr-2 h-4 w-4" />
                     Send via SMS Instead
+                  </>
+                )}
+              </Button>
+            )}
+
+            {method === "sms" && (
+              <Button
+                variant="outline"
+                onClick={handleSendWhatsAppOTP}
+                disabled={isSending}
+                className="w-full"
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Send via WhatsApp Instead
                   </>
                 )}
               </Button>
