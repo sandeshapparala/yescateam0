@@ -7,7 +7,6 @@ import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Users, 
-  UserPlus, 
   ClipboardList, 
   CreditCard,
   Megaphone,
@@ -16,7 +15,8 @@ import {
   Settings,
   LogOut,
   Menu,
-  X
+  X,
+  UserCog
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -28,6 +28,7 @@ const navigation = [
   { name: 'Announcements', href: '/admin/announcements', icon: Megaphone, roles: ['admin', 'super_admin'] },
   { name: 'Devotionals', href: '/admin/devotionals', icon: BookOpen, roles: ['admin', 'super_admin'] },
   { name: 'Games', href: '/admin/games', icon: Trophy, roles: ['admin', 'super_admin'] },
+  { name: 'Users', href: '/admin/users', icon: UserCog, roles: ['super_admin'] },
   { name: 'Settings', href: '/admin/settings', icon: Settings, roles: ['super_admin'] },
 ];
 

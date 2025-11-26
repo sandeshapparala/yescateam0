@@ -188,12 +188,10 @@ export async function GET(request: NextRequest) {
 
     // Send WhatsApp confirmation message
     try {
-      const loginUrl = `${process.env.NEXT_PUBLIC_URL}/profile`;
       await sendRegistrationConfirmation(
         pendingData.phone_number,
         pendingData.full_name,
-        memberId,
-        loginUrl
+        memberId
       );
       console.log('✅ WhatsApp confirmation sent to:', pendingData.phone_number);
     } catch (whatsappError) {

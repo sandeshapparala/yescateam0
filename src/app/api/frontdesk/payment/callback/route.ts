@@ -1,18 +1,35 @@
+// Frontdesk Payment Callback API Route
+// Handles PhonePe payment response for frontdesk registrations
+// Creates member and registration after successful payment
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
-/* eslint-disable */
 
-// Payment Callback API - Step 2: Handle PhonePe Response
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase/admin';
 import { generateMemberId } from '@/lib/firebase/utils';
-import { generateRegId } from '@/lib/registration/types';
 import { checkPhonePeOrderStatus } from '@/lib/payment/phonepe';
-import { sendRegistrationConfirmation } from '@/lib/whatsapp/send-confirmation';
+
+// Generate registration ID
+function generateRegId(prefix: string): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const nums = '0123456789';
+  
+  let letters = '';
+  for (let i = 0; i < 2; i++) {
+    letters += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  
+  let numbers = '';
+  for (let i = 0; i < 2; i++) {
+    numbers += nums.charAt(Math.floor(Math.random() * nums.length));
+  }
+  
+  return `${prefix}${letters}${numbers}`;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('Payment callback received');
+    console.log('Frontdesk payment callback received');
     
     // PhonePe sends data as form-urlencoded
     const phonePeFormData = await request.formData();
@@ -23,7 +40,7 @@ export async function POST(request: NextRequest) {
     if (!response) {
       console.error('No response data from PhonePe');
       return NextResponse.redirect(
-        new URL('/register/payment-failed?error=no_response', request.url)
+        new URL('/frontdesk/payment-callback?error=no_response', request.url)
       );
     }
 
@@ -37,96 +54,53 @@ export async function POST(request: NextRequest) {
     if (!transactionId) {
       console.error('Transaction ID missing from response');
       return NextResponse.redirect(
-        new URL('/register/payment-failed?error=no_transaction_id', request.url)
+        new URL('/frontdesk/payment-callback?error=no_transaction_id', request.url)
       );
     }
 
-    console.log(`Payment status for ${transactionId}: ${paymentStatus}`);
+    console.log(`Frontdesk payment status for ${transactionId}: ${paymentStatus}`);
 
-    // Check if this is a donation payment (by transaction ID prefix)
-    const isDonation = transactionId.startsWith('DONATE_');
-    console.log(`Transaction type: ${isDonation ? 'Donation' : 'Registration'}`);
-
-    // Handle donation payment
-    if (isDonation) {
-      console.log('Processing donation payment...');
-      
-      const donationQuery = await adminDb.collection('donations')
-        .where('merchant_order_id', '==', transactionId)
-        .limit(1)
-        .get();
-
-      if (donationQuery.empty) {
-        console.error('Donation not found for transaction:', transactionId);
-        return NextResponse.redirect(
-          new URL(`/donate/payment-failed?error=donation_not_found&transaction=${transactionId}`, request.url)
-        );
-      }
-
-      const donationDoc = donationQuery.docs[0];
-      const donationId = donationDoc.id;
-
-      // Check payment status
-      if (paymentStatus !== 'PAYMENT_SUCCESS') {
-        console.log('Donation payment not successful, status:', paymentStatus);
-        
-        // Update donation status to failed
-        await donationDoc.ref.update({
-          payment_status: 'failed',
-          status: 'failed',
-          updated_at: Date.now(),
-          failure_reason: paymentStatus,
-        });
-        
-        return NextResponse.redirect(
-          new URL(`/donate/payment-failed?transaction=${transactionId}&status=${paymentStatus}`, request.url)
-        );
-      }
-
-      // Payment successful - update donation
-      console.log('Donation payment successful!');
-      await donationDoc.ref.update({
-        payment_status: 'completed',
-        status: 'completed',
-        payment_completed_at: Date.now(),
-        updated_at: Date.now(),
-        payment_details: decodedResponse.data,
-      });
-
-      console.log('✅ Donation payment completed:', donationId);
-      
+    // Verify this is a frontdesk payment (starts with FD_)
+    if (!transactionId.startsWith('FD_')) {
+      console.error('Not a frontdesk transaction:', transactionId);
       return NextResponse.redirect(
-        new URL(`/donate/success?donation_id=${donationId}`, request.url)
+        new URL('/frontdesk/payment-callback?error=invalid_transaction', request.url)
       );
     }
 
-    // Handle registration payment
-    console.log('Processing registration payment...');
-
-    // Check payment status for registration
-    if (paymentStatus !== 'PAYMENT_SUCCESS') {
-      console.log('Registration payment not successful, status:', paymentStatus);
-      return NextResponse.redirect(
-        new URL(`/register/payment-failed?transaction=${transactionId}&status=${paymentStatus}`, request.url)
-      );
-    }
-
-    // Continue with registration payment processing
-
-    // Get pending registration data from YC26 collection
-    console.log('Fetching pending registration data for:', transactionId);
+    // Get pending registration data
     const pendingRegRef = adminDb.collection('camps').doc('YC26').collection('pending_registrations').doc(transactionId);
     const pendingRegDoc = await pendingRegRef.get();
 
     if (!pendingRegDoc.exists) {
       console.error('Pending registration not found for:', transactionId);
       return NextResponse.redirect(
-        new URL(`/register/payment-failed?error=pending_not_found&transaction=${transactionId}`, request.url)
+        new URL(`/frontdesk/payment-callback?error=pending_not_found&transaction=${transactionId}`, request.url)
       );
     }
 
     const pendingData = pendingRegDoc.data()!;
-    console.log('Pending registration found, creating member and registration...');
+
+    // Check payment status
+    if (paymentStatus !== 'PAYMENT_SUCCESS') {
+      console.log('Frontdesk payment not successful, status:', paymentStatus);
+      
+      // Update pending registration with failed status
+      await pendingRegRef.update({
+        payment_status: 'failed',
+        status: 'failed',
+        failure_reason: paymentStatus,
+        updated_at: new Date().toISOString(),
+      });
+      
+      return NextResponse.redirect(
+        new URL(`/frontdesk/payment-callback?status=failed&transaction=${transactionId}&reason=${paymentStatus}`, request.url)
+      );
+    }
+
+    // Payment successful - create member and registration
+    console.log('Frontdesk payment successful, creating member and registration...');
+
     const registrationType = pendingData.registration_type;
     const amount = pendingData.amount;
 
@@ -163,7 +137,7 @@ export async function POST(request: NextRequest) {
       future_goals: pendingData.future_goals || null,
       current_skills: pendingData.current_skills || null,
       desired_skills: pendingData.desired_skills || null,
-      registered_camps: ['YC26'], // Initialize with current camp
+      registered_camps: ['YC26'],
       last_registered_camp: 'YC26',
       created_at: timestamp,
       updated_at: timestamp,
@@ -176,19 +150,23 @@ export async function POST(request: NextRequest) {
       camp_id: 'YC26',
       full_name: pendingData.full_name,
       phone_number: pendingData.phone_number,
+      gender: pendingData.gender,
+      age: pendingData.age,
+      church_name: pendingData.church_name,
       registration_type: registrationType,
-      registration_date: timestamp,
+      amount_paid: amount,
+      payment_mode: 'online',
       payment_status: 'completed',
-      payment_amount: amount,
       payment_transaction_id: transactionId,
       payment_method: 'phonepe',
       payment_completed_at: timestamp,
-      attendance_status: 'registered',
-      group_name: null,
       yc26_registration_number: newYC26Counter,
-      yc26_attended_number: null,
-      collected_faithbox: registrationType === 'faithbox' ? false : null,
-      registered_by: 'online',
+      yc26_attended_number: null, // Assigned when ID is printed
+      group_name: null, // Assigned when ID is printed
+      registered_by: pendingData.registered_by || 'frontdesk',
+      collected_faithbox: pendingData.collected_faithbox,
+      id_printed: false,
+      registration_date: timestamp,
       created_at: timestamp,
       updated_at: timestamp,
     };
@@ -205,6 +183,7 @@ export async function POST(request: NextRequest) {
       phone_number: pendingData.phone_number,
       payment_date: timestamp,
       phonepe_response: decodedResponse,
+      source: 'frontdesk',
       created_at: timestamp,
     };
 
@@ -241,56 +220,43 @@ export async function POST(request: NextRequest) {
 
     // Commit batch
     await batch.commit();
-    console.log('Successfully created member:', memberId, 'and registration:', regId);
-
-    // Send WhatsApp confirmation message
-    try {
-      await sendRegistrationConfirmation(
-        formData.phone_number,
-        formData.full_name,
-        memberId
-      );
-      console.log('✅ WhatsApp confirmation sent to:', formData.phone_number);
-    } catch (whatsappError) {
-      // Don't fail the registration if WhatsApp fails
-      console.error('⚠️ Failed to send WhatsApp confirmation:', whatsappError);
-    }
+    console.log('✅ Successfully created member:', memberId, 'and registration:', regId);
 
     // Create audit log
     await adminDb.collection('audit_logs').add({
-      action: 'registration_created_with_payment',
+      action: 'frontdesk_registration_created_with_payment',
       resource_type: 'registration',
       resource_id: regId,
       actor_type: 'system',
-      actor_id: 'payment_callback',
+      actor_id: 'frontdesk_payment_callback',
       details: {
         member_id: memberId,
         registration_type: registrationType,
         transaction_id: transactionId,
         amount: amount,
+        registered_by: pendingData.registered_by,
       },
       timestamp,
     });
 
     console.log('Redirecting to success page');
-    // Redirect to success page with registration details
+    // Redirect to frontdesk success page
     return NextResponse.redirect(
       new URL(
-        `/register/payment-success?member_id=${memberId}&registration_id=${regId}&transaction=${transactionId}`,
+        `/frontdesk/payment-callback?status=success&member_id=${memberId}&registration_id=${regId}&reg_number=${newYC26Counter}&transaction=${transactionId}`,
         request.url
       )
     );
   } catch (error) {
-    console.error('Payment callback error:', error);
+    console.error('Frontdesk payment callback error:', error);
     console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.redirect(
-      new URL('/register/payment-failed?error=processing_failed', request.url)
+      new URL('/frontdesk/payment-callback?error=processing_failed', request.url)
     );
   }
 }
 
-// Handle GET request for status check
+// Handle GET request for manual status check
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const transactionId = searchParams.get('transaction_id');
@@ -305,7 +271,7 @@ export async function GET(request: NextRequest) {
   try {
     const statusResponse = await checkPhonePeOrderStatus(transactionId);
     return NextResponse.json(statusResponse);
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Failed to check payment status' },
       { status: 500 }
