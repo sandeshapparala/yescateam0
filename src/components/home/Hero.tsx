@@ -11,8 +11,10 @@ import YC26bgu from './unicorn/YC26bgu';
 const Hero = () => {
   return (
     <section className="relative w-full min-h-screen text-foreground overflow-hidden transition-colors duration-300 pb-12 -mt-[70px]">
+      {/* Fallback Gradient Background - Shows while Unicorn loads */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#B8282D] via-[#D84A3F] to-[#F58649] z-0" />
+      
       {/* Unicorn Studio Gradient Background Component - Only for Hero */}
-
       <YC26bgu />
 
       {/* Hero Content */}

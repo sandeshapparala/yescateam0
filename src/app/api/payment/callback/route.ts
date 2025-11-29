@@ -246,11 +246,11 @@ export async function POST(request: NextRequest) {
     // Send WhatsApp confirmation message
     try {
       await sendRegistrationConfirmation(
-        formData.phone_number,
-        formData.full_name,
+        pendingData.phone_number,
+        pendingData.full_name,
         memberId
       );
-      console.log('✅ WhatsApp confirmation sent to:', formData.phone_number);
+      console.log('✅ WhatsApp confirmation sent to:', pendingData.phone_number);
     } catch (whatsappError) {
       // Don't fail the registration if WhatsApp fails
       console.error('⚠️ Failed to send WhatsApp confirmation:', whatsappError);

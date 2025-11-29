@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Pacifico } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/ThemeProvider";
-// import { Navbar } from "@/components/Navbar";
+import { Navbar } from "@/components/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -88,7 +88,7 @@ export default function RootLayout({
           storageKey="yesca-theme"
           disableTransitionOnChange
         >
-          {/* <Navbar /> */}
+          <Navbar />
           {children}
         </ThemeProvider>
       </body>
