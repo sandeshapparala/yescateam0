@@ -1,38 +1,45 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 
 const plans = [
   {
     name: "Normal Registration",
     nameTelugu: "ఒక్కరి రిజిస్ట్రేషన్ ఫీజ్",
-    price: "₹300",
+    price: "300",
     description: "Click the button below",
     descriptionTelugu: "ఈ క్రింది బటన్ క్లిక్ చేయండి",
     buttonGradient: "from-[#C84037] to-[#E67E3A]", // Red to Orange
     borderColor: "border-[#FFD700]",
-    delay: 0
+    delay: 0,
+    href: "/register?type=normal",
+    active: true
   },
   {
     name: "Kids Registration",
     nameTelugu: "కిడ్స్ రిజిస్ట్రేషన్ ఫీజ్",
-    price: "₹100",
-    description: "Click the button below",
-    descriptionTelugu: "ఈ క్రింది బటన్ క్లిక్ చేయండి",
+    price: "100",
+    description: "Coming Soon",
+    descriptionTelugu: "త్వరలో వస్తుంది",
     buttonGradient: "from-[#E67E3A] to-[#F5A623]", // Orange to Yellow
     borderColor: "border-[#FFD700]",
-    delay: 0.1
+    delay: 0.1,
+    href: "#",
+    active: false
   },
   {
     name: "Faithbox Registration",
     nameTelugu: "ఫెయిత్ బాక్స్ కలిగిన వారి రిజిస్ట్రేషన్ ఫీజ్",
-    price: "₹50",
+    price: "50",
     description: "Click the button below",
     descriptionTelugu: "ఈ క్రింది బటన్ క్లిక్ చేయండి",
     buttonGradient: "from-[#F5A623] to-[#FFA500]", // Yellow to Gold
     borderColor: "border-[#FFD700]",
-    delay: 0.2
+    delay: 0.2,
+    href: "/register?type=faithbox",
+    active: true
   },
 ];
 
@@ -94,9 +101,28 @@ interface Plan {
   buttonGradient: string;
   borderColor: string;
   delay: number;
+  href: string;
+  active: boolean;
 }
 
 function PricingCard({ plan }: { plan: Plan }) {
+    const ButtonContent = (
+        <div 
+            className={`
+                w-full py-3 px-5 rounded-lg font-bold text-white text-sm uppercase tracking-[0.15em] font-[DIN_Pro]
+                bg-gradient-to-r ${plan.buttonGradient}
+                shadow-lg transform transition-all duration-300
+                border border-white/10
+                ${plan.active 
+                    ? 'hover:shadow-[0_0_20px_rgba(255,215,0,0.3)] hover:scale-[1.02] active:scale-[0.98] cursor-pointer' 
+                    : 'cursor-not-allowed opacity-60 grayscale-[0.3]'
+                }
+            `}
+        >
+            {plan.active ? 'Register Now' : 'Coming Soon'}
+        </div>
+    );
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -135,18 +161,13 @@ function PricingCard({ plan }: { plan: Plan }) {
                     </div>
                 </div>
 
-                <button 
-                    className={`
-                        w-full py-3 px-5 rounded-lg font-bold text-white text-sm uppercase tracking-[0.15em] font-[DIN_Pro]
-                        bg-gradient-to-r ${plan.buttonGradient}
-                        shadow-lg transform transition-all duration-300
-                        hover:shadow-[0_0_20px_rgba(255,215,0,0.3)] hover:scale-[1.02] active:scale-[0.98]
-                        cursor-not-allowed opacity-80 grayscale-[0.3] hover:grayscale-0
-                        border border-white/10
-                    `}
-                >
-                    Registration Opens Soon
-                </button>
+                {plan.active ? (
+                    <Link href={plan.href} className="w-full">
+                        {ButtonContent}
+                    </Link>
+                ) : (
+                    ButtonContent
+                )}
             </div>
         </motion.div>
     )
