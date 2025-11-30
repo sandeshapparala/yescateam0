@@ -50,11 +50,19 @@ const Hero = () => {
                 Sign In
               </Button>
             </Link>
-            <Link href="/register">
-              <Button variant="outline" size="lg" className="font-semibold">
-                Register
-              </Button>
-            </Link>
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="font-semibold"
+              onClick={() => {
+                document.getElementById('registration-section')?.scrollIntoView({ 
+                  behavior: 'smooth',
+                  block: 'start'
+                });
+              }}
+            >
+              Register
+            </Button>
           </div>
 
           {/* 3D Carousel */}

@@ -45,7 +45,7 @@ const plans = [
 
 export default function RegistrationSection() {
   return (
-    <section className="relative w-full py-20 bg-gradient-to-b from-[#8B1A1A] to-[#C84037] overflow-hidden">
+    <section id="registration-section" className="relative w-full py-20 bg-gradient-to-b from-[#8B1A1A] to-[#C84037] overflow-hidden">
        {/* Background Pattern - Premium Dark Gradient with Noise */}
        <div className="absolute inset-0 pointer-events-none">
         <div className="absolute inset-0 opacity-20"
