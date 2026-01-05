@@ -43,9 +43,10 @@ export async function POST(request: NextRequest) {
 
     console.log(`Payment status for ${transactionId}: ${paymentStatus}`);
 
-    // Check if this is a donation payment (by transaction ID prefix)
+    // Check payment type by transaction ID prefix
     const isDonation = transactionId.startsWith('DONATE_');
-    console.log(`Transaction type: ${isDonation ? 'Donation' : 'Registration'}`);
+    const isVolunteer = transactionId.startsWith('VOLUNTEER_');
+    console.log(`Transaction type: ${isDonation ? 'Donation' : isVolunteer ? 'Volunteer' : 'Registration'}`);
 
     // Handle donation payment
     if (isDonation) {
@@ -97,6 +98,140 @@ export async function POST(request: NextRequest) {
       
       return NextResponse.redirect(
         new URL(`/donate/success?donation_id=${donationId}`, request.url)
+      );
+    }
+
+    // Handle volunteer registration payment
+    if (isVolunteer) {
+      console.log('Processing volunteer registration payment...');
+
+      // Check payment status
+      if (paymentStatus !== 'PAYMENT_SUCCESS') {
+        console.log('Volunteer payment not successful, status:', paymentStatus);
+        return NextResponse.redirect(
+          new URL(`/volunteer/payment-failed?transaction=${transactionId}&status=${paymentStatus}`, request.url)
+        );
+      }
+
+      // Get pending volunteer data
+      const pendingVolunteerRef = adminDb.collection('camps').doc('YC26').collection('pending_volunteers').doc(transactionId);
+      const pendingVolunteerDoc = await pendingVolunteerRef.get();
+
+      if (!pendingVolunteerDoc.exists) {
+        console.error('Pending volunteer registration not found for:', transactionId);
+        return NextResponse.redirect(
+          new URL(`/volunteer/payment-failed?error=pending_not_found&transaction=${transactionId}`, request.url)
+        );
+      }
+
+      const pendingData = pendingVolunteerDoc.data()!;
+      console.log('Pending volunteer found, creating volunteer record...');
+
+      // Get volunteer counter
+      const counterRef = adminDb.collection('settings').doc('counters');
+      const counterDoc = await counterRef.get();
+      const counters = counterDoc.data() || {};
+      const currentVolunteerCounter = counters.yc26VolunteerCounter || 0;
+      const newVolunteerCounter = currentVolunteerCounter + 1;
+
+      const volunteerId = `VOL_${String(newVolunteerCounter).padStart(4, '0')}`;
+      const timestamp = new Date().toISOString();
+
+      // Create volunteer document
+      const volunteerData = {
+        volunteer_id: volunteerId,
+        volunteer_number: newVolunteerCounter,
+        full_name: pendingData.full_name,
+        phone_number: pendingData.phone_number,
+        age: pendingData.age,
+        church_name: pendingData.church_name,
+        address: pendingData.address,
+        payment_status: 'completed',
+        payment_amount: pendingData.amount,
+        payment_transaction_id: transactionId,
+        payment_method: 'phonepe',
+        payment_completed_at: timestamp,
+        status: 'registered',
+        registered_by: 'online',
+        created_at: timestamp,
+        updated_at: timestamp,
+      };
+
+      // Create payment record
+      const paymentData = {
+        payment_id: transactionId,
+        volunteer_id: volunteerId,
+        amount: pendingData.amount,
+        payment_method: 'phonepe',
+        payment_status: 'completed',
+        transaction_id: transactionId,
+        phone_number: pendingData.phone_number,
+        payment_date: timestamp,
+        phonepe_response: decodedResponse,
+        type: 'volunteer',
+        created_at: timestamp,
+      };
+
+      // Batch write to Firestore
+      const batch = adminDb.batch();
+
+      // Add volunteer document
+      const volunteerRef = adminDb.collection('camps').doc('YC26').collection('volunteers').doc(volunteerId);
+      batch.set(volunteerRef, volunteerData);
+
+      // Add payment document
+      const paymentRef = adminDb.collection('payments').doc(transactionId);
+      batch.set(paymentRef, paymentData);
+
+      // Update counters
+      batch.update(counterRef, {
+        yc26VolunteerCounter: newVolunteerCounter,
+        lastUpdated: timestamp,
+      });
+
+      // Update pending volunteer status
+      batch.update(pendingVolunteerRef, {
+        payment_status: 'completed',
+        status: 'completed',
+        volunteer_id: volunteerId,
+        completed_at: timestamp,
+      });
+
+      // Commit batch
+      await batch.commit();
+      console.log('Successfully created volunteer:', volunteerId);
+
+      // Send WhatsApp confirmation message
+      try {
+        await sendRegistrationConfirmation(
+          pendingData.phone_number,
+          pendingData.full_name,
+          volunteerId
+        );
+        console.log('✅ WhatsApp confirmation sent to:', pendingData.phone_number);
+      } catch (whatsappError) {
+        console.error('⚠️ Failed to send WhatsApp confirmation:', whatsappError);
+      }
+
+      // Create audit log
+      await adminDb.collection('audit_logs').add({
+        action: 'volunteer_registered_with_payment',
+        resource_type: 'volunteer',
+        resource_id: volunteerId,
+        actor_type: 'system',
+        actor_id: 'payment_callback',
+        details: {
+          volunteer_id: volunteerId,
+          transaction_id: transactionId,
+          amount: pendingData.amount,
+        },
+        timestamp,
+      });
+
+      console.log('✅ Volunteer payment completed:', volunteerId);
+      
+      return NextResponse.redirect(
+        new URL(`/volunteer/payment-success?volunteer_id=${volunteerId}&transaction=${transactionId}`, request.url)
       );
     }
 
