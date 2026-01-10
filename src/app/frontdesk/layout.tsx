@@ -13,9 +13,9 @@ function FrontdeskLayoutContent({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading) {
-      // Not logged in - redirect to login
+      // Not logged in - redirect to admin login
       if (!user) {
-        router.push('/frontdesk/login');
+        router.push('/admin/login');
         return;
       }
 

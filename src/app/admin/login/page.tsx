@@ -5,7 +5,7 @@
 // Admin Login Page
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -15,8 +15,19 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, user, role, loading: authLoading } = useAuth();
   const router = useRouter();
+
+  // Redirect based on role after login
+  useEffect(() => {
+    if (!authLoading && user && role) {
+      if (role.role === 'frontdesk') {
+        router.push('/frontdesk');
+      } else if (role.role === 'admin' || role.role === 'super_admin') {
+        router.push('/admin/dashboard');
+      }
+    }
+  }, [user, role, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +36,7 @@ export default function AdminLoginPage() {
 
     try {
       await signIn(email, password);
-      router.push('/admin/dashboard');
+      // Redirect will happen via useEffect above
     } catch (err: any) {
       console.error('Login error:', err);
       if (err.code === 'auth/invalid-credential') {
@@ -39,7 +50,6 @@ export default function AdminLoginPage() {
       } else {
         setError('Failed to sign in. Please try again.');
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -60,7 +70,7 @@ export default function AdminLoginPage() {
         {/* Login Card */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8">
           <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-6">
-            Admin Login
+            Team Login
           </h2>
 
           {error && (
@@ -122,8 +132,8 @@ export default function AdminLoginPage() {
 
           {/* Footer */}
           <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-            <p>YESCA Team Admin Portal</p>
-            <p className="mt-1">Contact super admin for access</p>
+            <p>YESCA Team Portal</p>
+            <p className="mt-1">Contact admin for access</p>
           </div>
         </div>
       </div>

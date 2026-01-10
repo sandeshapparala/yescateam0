@@ -22,88 +22,30 @@ interface PrintIdModalProps {
 }
 
 export function PrintIdModal({ isOpen, onClose, registration, onPrint }: PrintIdModalProps) {
-  const [isPrinting, setIsPrinting] = useState(false);
-  const [showFaithboxPrompt, setShowFaithboxPrompt] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   if (!isOpen) return null;
 
-  const handlePrintClick = async () => {
-    // If faithbox registration and not yet collected, show prompt
-    if (registration.registration_type === 'faithbox' && !registration.collected_faithbox) {
-      setShowFaithboxPrompt(true);
-    } else {
-      await handleFinalPrint(false);
-    }
-  };
-
-  const handleFaithboxCollect = async (collected: boolean) => {
-    await handleFinalPrint(collected);
-  };
-
-  const handleFinalPrint = async (faithboxCollected: boolean) => {
-    setIsPrinting(true);
+  const handleGenerateClick = async () => {
+    setIsGenerating(true);
     try {
+      // Auto-mark faithbox as collected for faithbox registrations
+      const faithboxCollected = registration.registration_type === 'faithbox' ? true : undefined;
       await onPrint(faithboxCollected);
       onClose();
     } catch (error) {
-      console.error('Print error:', error);
-      alert('Failed to print ID card');
+      console.error('Generate ID error:', error);
+      alert('Failed to generate ID card');
     } finally {
-      setIsPrinting(false);
-      setShowFaithboxPrompt(false);
+      setIsGenerating(false);
     }
   };
-
-  if (showFaithboxPrompt) {
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-card rounded-lg shadow-xl max-w-md w-full p-6">
-          <div className="flex items-start mb-4">
-            <AlertCircle className="w-6 h-6 text-primary mr-3 shrink-0 mt-0.5" />
-            <div>
-              <h3 className="text-lg font-semibold text-card-foreground mb-2">
-                Collect Faithbox
-              </h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Has the participant collected their faithbox?
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <Button
-              onClick={() => handleFaithboxCollect(true)}
-              disabled={isPrinting}
-              className="flex-1"
-            >
-              {isPrinting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                'Collected'
-              )}
-            </Button>
-            <Button
-              onClick={() => setShowFaithboxPrompt(false)}
-              variant="outline"
-              disabled={isPrinting}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-card rounded-lg shadow-xl max-w-2xl w-full p-6">
         <h2 className="text-2xl font-bold text-card-foreground mb-6">
-          Print ID Card
+          Generate ID Card
         </h2>
 
         <div className="space-y-6">
@@ -139,7 +81,7 @@ export function PrintIdModal({ isOpen, onClose, registration, onPrint }: PrintId
             ) : (
               <div className="border-t border-border pt-2 mt-2">
                 <p className="text-sm text-primary font-semibold">
-                  ✨ Group will be auto-assigned when you print the ID card
+                  ✨ Team will be auto-assigned when you generate the ID card
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Based on camp attendance sequence
@@ -174,26 +116,26 @@ export function PrintIdModal({ isOpen, onClose, registration, onPrint }: PrintId
         {/* Actions */}
         <div className="flex gap-3 mt-6">
           <Button
-            onClick={handlePrintClick}
-            disabled={isPrinting}
+            onClick={handleGenerateClick}
+            disabled={isGenerating}
             className="flex-1"
           >
-            {isPrinting ? (
+            {isGenerating ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Printing...
+                Generating...
               </>
             ) : (
               <>
                 <Printer className="mr-2 h-4 w-4" />
-                {registration.group_name ? 'Re-Print ID Card' : 'Print ID Card & Assign Group'}
+                {registration.group_name ? 'Re-Generate ID Card' : 'Generate ID Card & Assign Team'}
               </>
             )}
           </Button>
           <Button
             onClick={onClose}
             variant="outline"
-            disabled={isPrinting}
+            disabled={isGenerating}
             className="flex-1"
           >
             Cancel
